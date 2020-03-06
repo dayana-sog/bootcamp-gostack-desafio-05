@@ -1,9 +1,10 @@
 import React, {Component} from 'react';
+import { FaAngleDoubleLeft, FaAngleDoubleRight } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import api from '../../services/api';
 
-import { Loading, Owner, IssueList } from './styles';
+import { Loading, Owner, IssueList, Pagination, IssueFilter } from './styles';
 import Container from '../../components/Container';
 
 export default class Repository extends Component {
@@ -19,10 +20,19 @@ export default class Repository extends Component {
     repository: {},
     issues: [],
     loading: true,
+    filters: [
+      { state: 'all', label: 'Todas', active: true },
+      { state: 'open', label: 'Abertas', active: false },
+      { state: 'closed', label: 'Fechadas', active: false },
+    ],
+    filterIndex: 0,
+    page: 1,
   };
 
   async componentDidMount() {
     const { match } = this.props;
+
+    const { filters } = this.state;
 
     const repoName = decodeURIComponent(match.params.repository);
 
@@ -30,7 +40,7 @@ export default class Repository extends Component {
       api.get(`/repos/${repoName}`),
       api.get(`/repos/${repoName}/issues`, {
         params: {
-          state: 'open',
+          state: filters.find(f => f.active).state,
           per_page: 5,
         }
       }),
@@ -43,8 +53,45 @@ export default class Repository extends Component {
     });
   }
 
+  loadIssues = async () => {
+    const { match } = this.props;
+    const { filters, filterIndex, page } = this.state;
+
+    const repoName = decodeURIComponent(match.params.repository);
+
+    const response = await api.get(`/repos/${repoName}/issues`, {
+      params: {
+        state: filters[filterIndex].state,
+        per_page: 5,
+        page,
+      },
+    });
+
+    this.setState({ issues: response.data });
+  };
+
+  handleFilterClick = async filterIndex => {
+    await this.setState({ filterIndex });
+    this.loadIssues();
+  };
+
+  handlePage = async action => {
+    const { page } = this.state;
+    await this.setState({
+      page: action === 'back' ? page - 1 : page + 1,
+    });
+    this.loadIssues();
+  };
+
   render () {
-    const { repository, issues, loading } = this.state;
+    const {
+      repository,
+      issues,
+      loading,
+      filters,
+      filterIndex,
+      page
+    } = this.state;
 
     if ( loading ) {
       return <Loading>Carregando</Loading>
@@ -60,6 +107,18 @@ export default class Repository extends Component {
         </Owner>
 
         <IssueList>
+          <IssueFilter active={filterIndex}>
+            {filters.map((filter, index) => (
+              <button
+                type="button"
+                key={filter.label}
+                onClick={() => this.handleFilterClick(index)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </IssueFilter>
+
           {issues.map(issue => (
             <li key={String(issue.id)}>
               <img src={issue.user.avatar_url} alt={issue.user.login}/>
@@ -75,6 +134,20 @@ export default class Repository extends Component {
             </li>
           ))}
         </IssueList>
+
+        <Pagination>
+          <span
+            disabled={page < 2}
+            onClick={() => this.handlePage('back')
+            }>
+          <FaAngleDoubleLeft color="#7159c1" size={30} cursor="pointer"/>
+          </span>
+          <span
+            onClick={() => this.handlePage('next')
+            }>
+          <FaAngleDoubleRight color="#7159c1" size={30} cursor="pointer"/>
+          </span>
+        </Pagination>
       </Container>
     );
   }

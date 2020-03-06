@@ -12,6 +12,8 @@ export default class Main extends Component {
     newRepo: '',
     repositories: [],
     loading: false,
+    error: null,
+    placeholder: 'Adicione um repositório',
   };
 
   // Get data from localStorage
@@ -42,23 +44,62 @@ export default class Main extends Component {
 
     this.setState({ loading: true });
 
-    const { newRepo, repositories  } = this.state;
+    try {
+      const { newRepo, repositories  } = this.state;
 
-    const response = await api.get(`/repos/${newRepo}`)
+      const hasRepo = repositories.find(r => r.name === newRepo);
 
-    const data = {
-      name: response.data.full_name,
-    };
+      if (hasRepo) throw new Error('Repositório duplicado');
 
-    this.setState({
-      repositories: [...repositories, data],
-      newRepo: '',
-      loading: false,
-    });
+      if ( newRepo === '' ) throw new Error('Requisição vazia');
+
+      const response = await api.get(`/repos/${newRepo}`)
+
+      const data = {
+        name: response.data.full_name,
+      };
+
+      this.setState({
+        repositories: [...repositories, data],
+        newRepo: '',
+        loading: false,
+      });
+    }
+
+    catch (err) {
+      if ( err.message === 'Repositório duplicado') {
+        this.setState({
+          error: true,
+          placeholder: 'Repositório duplicado',
+          newRepo: '',
+        });
+      }
+
+      if ( err.message === 'Requisição vazia') {
+        this.setState({
+          error: true,
+          placeholder: 'Digite um repositório valido',
+          newRepo: '',
+        });
+      }
+
+      if (err.response && err.response.status === 404) {
+        this.setState({
+          error: true,
+          placeholder: 'Repositório não encontrado',
+          newRepo: '',
+        });
+      }
+    }
+
+    finally {
+      this.setState({ loading: false });
+    }
+
   };
 
   render() {
-    const { newRepo, repositories, loading } = this.state;
+    const { newRepo, repositories, loading, error, placeholder } = this.state;
 
     return (
       <Container>
@@ -67,10 +108,10 @@ export default class Main extends Component {
           Repositórios
         </h1>
 
-        <Form onSubmit={this.handleSubmit}>
+        <Form onSubmit={this.handleSubmit} error={error}>
           <input
             type="text"
-            placeholder="Adicionar Repositório"
+            placeholder={placeholder}
             value={newRepo}
             onChange={this.handleInputChange}
           />
